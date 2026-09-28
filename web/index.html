@@ -3,46 +3,161 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb">
   <title>GameModManager</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; }
-    input, button { padding: 10px; margin: 4px; }
-    #status { margin-top: 20px; white-space: pre-wrap; }
+    :root { color-scheme: light; font-family: Inter, "Segoe UI", Arial, sans-serif; color: #182235; background: #f5f7fb; }
+    * { box-sizing: border-box; }
+    body { max-width: 960px; margin: 0 auto; padding: 40px 22px 64px; }
+    header { margin-bottom: 28px; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.8rem, 5vw, 2.4rem); letter-spacing: -.04em; }
+    p { color: #5e6a7e; line-height: 1.55; }
+    .panel { background: #fff; border: 1px solid #e0e6ef; border-radius: 14px; padding: 22px; margin: 18px 0; box-shadow: 0 4px 18px #1e35500a; }
+    h2 { font-size: 1.15rem; margin: 0 0 14px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; }
+    input { flex: 1 1 240px; min-width: 0; padding: 12px 14px; border: 1px solid #cbd4e1; border-radius: 8px; font: inherit; }
+    input:focus { outline: 3px solid #cfe0ff; border-color: #3974d8; }
+    button { border: 0; border-radius: 8px; padding: 12px 16px; background: #245fc5; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+    button.secondary { background: #edf2fa; color: #263750; }
+    button:hover { filter: brightness(.96); }
+    .hint, .status { font-size: .92rem; }
+    .status { min-height: 1.4em; margin: 12px 0 0; }
+    .muted { color: #65738a; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { padding: 12px 0; border-top: 1px solid #edf0f5; overflow-wrap: anywhere; }
+    li:first-child { border-top: 0; }
+    .file-name { display: block; font-weight: 650; }
+    .file-path { display: block; margin-top: 4px; color: #65738a; font-size: .9rem; }
+    .empty { padding: 14px; color: #5e6a7e; background: #f7f9fc; border-radius: 8px; }
+    @media (max-width: 540px) { body { padding: 26px 14px 48px; } .panel { padding: 17px; } .row button { width: 100%; } }
   </style>
 </head>
 <body>
-  <h1>🎮 GameModManager</h1>
-  <p>Manage legitimate game mods and files in your dedicated mods directory.</p>
-  <input id="game" placeholder="Game name">
-  <button onclick="createGame()">Create Game Folder</button>
-  <button onclick="loadGames()">Refresh</button>
-  <h2>Games</h2>
-  <ul id="games"></ul>
-  <div id="status"></div>
+  <header>
+    <h1>🎮 GameModManager</h1>
+    <p>Find legitimate mod and catalog files by their numeric filename ID, and keep game folders organized under <code>C:\Mods</code>.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="search-heading">
+    <h2 id="search-heading">Find a file by ID</h2>
+    <form id="search-form">
+      <div class="row">
+        <input id="file-id" inputmode="numeric" autocomplete="off" pattern="[0-9]+" aria-label="Numeric file ID" placeholder="Enter a numeric ID, e.g. 12345232" required>
+        <button type="submit">Search files</button>
+      </div>
+    </form>
+    <p class="hint muted">Matches IDs at the start of filenames, such as <code>12345232-mod.zip</code> or <code>12345232_mod.zip</code>.</p>
+    <p id="search-status" class="status" role="status" aria-live="polite"></p>
+    <ul id="results" aria-label="Matching files"></ul>
+  </section>
+
+  <section class="panel" aria-labelledby="games-heading">
+    <h2 id="games-heading">Game folders</h2>
+    <form id="game-form">
+      <div class="row">
+        <input id="game" autocomplete="off" aria-label="Game name" placeholder="Game name" required>
+        <button type="submit">Create game folder</button>
+        <button class="secondary" id="refresh-games" type="button">Refresh</button>
+      </div>
+    </form>
+    <p id="game-status" class="status" role="status" aria-live="polite"></p>
+    <ul id="games" aria-label="Existing game folders"></ul>
+  </section>
+
   <script>
-    async function loadGames() {
-      const response = await fetch("/api/games");
-      const games = await response.json();
-      document.getElementById("games").innerHTML =
-        games.map(game => "<li>" + escapeHtml(game) + "</li>").join("");
-    }
-    async function createGame() {
+    const searchForm = document.getElementById("search-form");
+    const searchStatus = document.getElementById("search-status");
+    const resultList = document.getElementById("results");
+    const gameStatus = document.getElementById("game-status");
+
+    searchForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const id = document.getElementById("file-id").value.trim();
+      searchStatus.textContent = "Searching…";
+      resultList.replaceChildren();
+      try {
+        const response = await fetch("/api/search?id=" + encodeURIComponent(id));
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Search failed.");
+        if (!data.results.length) {
+          searchStatus.textContent = "No matching file found for ID " + data.id + ".";
+          return;
+        }
+        searchStatus.textContent = data.results.length + " matching file" + (data.results.length === 1 ? "" : "s") + " found.";
+        for (const file of data.results) {
+          const item = document.createElement("li");
+          const name = document.createElement("span");
+          name.className = "file-name";
+          name.textContent = file.fileName;
+          const location = document.createElement("span");
+          location.className = "file-path";
+          location.textContent = (file.game ? file.game + " / " : "") + file.relativePath +
+            (file.size === null ? "" : " · " + formatSize(file.size));
+          item.append(name, location);
+          resultList.append(item);
+        }
+        if (data.truncated) searchStatus.textContent += " Search was limited to the first 20,000 files.";
+      } catch (error) {
+        searchStatus.textContent = error.message;
+      }
+    });
+
+    document.getElementById("game-form").addEventListener("submit", async event => {
+      event.preventDefault();
       const name = document.getElementById("game").value;
-      const response = await fetch("/api/games", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name })
-      });
-      const data = await response.json();
-      document.getElementById("status").textContent =
-        response.ok ? "Created: " + data.directory : "Error: " + data.error;
-      loadGames();
+      try {
+        const response = await fetch("/api/games", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not create folder.");
+        gameStatus.textContent = "Created: " + data.directory;
+        document.getElementById("game").value = "";
+        await loadGames();
+      } catch (error) {
+        gameStatus.textContent = "Error: " + error.message;
+      }
+    });
+
+    document.getElementById("refresh-games").addEventListener("click", loadGames);
+
+    async function loadGames() {
+      const list = document.getElementById("games");
+      list.replaceChildren();
+      try {
+        const response = await fetch("/api/games");
+        if (!response.ok) throw new Error("Could not load game folders.");
+        const games = await response.json();
+        for (const game of games) {
+          const item = document.createElement("li");
+          item.textContent = game;
+          list.append(item);
+        }
+        if (!games.length) {
+          const item = document.createElement("li");
+          item.className = "empty";
+          item.textContent = "No game folders yet.";
+          list.append(item);
+        }
+      } catch (error) {
+        gameStatus.textContent = error.message;
+      }
     }
-    function escapeHtml(value) {
-      return value.replace(/[&<>"']/g, c => ({
-        "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
-      }[c]));
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      const units = ["KB", "MB", "GB", "TB"];
+      let value = bytes / 1024;
+      let unit = 0;
+      while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+      }
+      return value.toFixed(value >= 10 ? 0 : 1) + " " + units[unit];
     }
+
     loadGames();
   </script>
 </body>

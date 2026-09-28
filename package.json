@@ -1,0 +1,17 @@
+{
+  "name": "game-mod-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Legitimate game mod and file manager",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

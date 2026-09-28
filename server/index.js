@@ -91,7 +91,7 @@ app.post("/api/games", (req, res) => {
 
 app.get("/api/search", (req, res) => {
   const id = String(req.query.id || "").trim();
-  if (!/^\\d{1,32}$/.test(id)) {
+  if (!/^\d{1,32}$/.test(id)) {
     return res.status(400).json({ error: "Enter a numeric file ID (1–32 digits)." });
   }
 

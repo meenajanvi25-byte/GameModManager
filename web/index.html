@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GameModManager</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+    input, button { padding: 10px; margin: 4px; }
+    #status { margin-top: 20px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>🎮 GameModManager</h1>
+  <p>Manage legitimate game mods and files in your dedicated mods directory.</p>
+  <input id="game" placeholder="Game name">
+  <button onclick="createGame()">Create Game Folder</button>
+  <button onclick="loadGames()">Refresh</button>
+  <h2>Games</h2>
+  <ul id="games"></ul>
+  <div id="status"></div>
+  <script>
+    async function loadGames() {
+      const response = await fetch("/api/games");
+      const games = await response.json();
+      document.getElementById("games").innerHTML =
+        games.map(game => "<li>" + escapeHtml(game) + "</li>").join("");
+    }
+    async function createGame() {
+      const name = document.getElementById("game").value;
+      const response = await fetch("/api/games", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      const data = await response.json();
+      document.getElementById("status").textContent =
+        response.ok ? "Created: " + data.directory : "Error: " + data.error;
+      loadGames();
+    }
+    function escapeHtml(value) {
+      return value.replace(/[&<>"']/g, c => ({
+        "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+      }[c]));
+    }
+    loadGames();
+  </script>
+</body>
+</html>

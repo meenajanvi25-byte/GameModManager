@@ -12,7 +12,7 @@ const MAX_SEARCH_FILES = 20000;
 
 function safeName(value) {
   return String(value || "")
-    .replace(/[<>:"/\\\\|?*]/g, "_")
+    .replace(/[<>:"/\\|?*]/g, "_")
     .trim()
     .slice(0, 120) || "Unknown";
 }
@@ -40,7 +40,6 @@ function findFilesById(id) {
       const absolutePath = path.join(directory, entry.name);
       const relativePath = path.join(relativeDirectory, entry.name);
 
-      // Do not follow symbolic links while indexing user files.
       if (entry.isDirectory()) {
         visit(absolutePath, relativePath);
       } else if (entry.isFile()) {
